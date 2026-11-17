@@ -48,3 +48,19 @@ def test_render(tmp_path, aspect, size):
     assert (v["width"], v["height"]) == size
     assert abs(float(info["format"]["duration"]) - 2.0) < 0.3
     assert out.with_suffix(".srt").exists()
+
+
+@ff
+def test_av_in_sync_many_lines(tmp_path):
+    p = Project.create(tmp_path / "p", "Sync")
+    Image.new("RGB", (300, 400), "gray").save(p.abs("panels/000.png"))
+    p.panels.append(Panel(0, "panels/000.png"))
+    for i in range(12):
+        _silence(p.abs(f"audio/{i:03d}.mp3"), 0.37)
+        p.lines.append(Line("x", 0, f"audio/{i:03d}.mp3", 0.37))
+    p.lines.append(Line("không có âm thanh", 0, "", 0.0))
+    out = render_video(p, "16:9")
+    o = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,duration", "-of", "json", str(out)],
+                       capture_output=True, text=True).stdout
+    d = {s["codec_type"]: float(s["duration"]) for s in json.loads(o)["streams"]}
+    assert abs(d["audio"] - d["video"]) < 0.06

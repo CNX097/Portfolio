@@ -85,42 +85,59 @@ def _run(cmd: list[str]) -> None:
         raise RuntimeError(f"FFmpeg lỗi: {r.stderr[-800:]}")
 
 
+def _seg_seconds(line: Line) -> float:
+    """Whole-frame segment length; lines without audio get a short silent beat."""
+    dur = line.duration if line.audio and line.duration > 0 else 1.5
+    return max(1, round(dur * FPS)) / FPS
+
+
 def render_video(p: Project, aspect: Literal["9:16", "16:9"], watermark: str = "",
                  music: Path | None = None, progress=None) -> Path:
+    """Video-only segments + one exact-length PCM audio track, muxed once (no A/V drift)."""
+    if not p.lines:
+        raise RuntimeError("Chưa có kịch bản để dựng video.")
     size = SIZES[aspect]
     W, H = size
     work = p.root / "out" / f"tmp_{aspect.replace(':', 'x')}"
     work.mkdir(parents=True, exist_ok=True)
-    segs = []
+    vsegs, asegs, timed = [], [], []
     for i, line in enumerate(p.lines):
-        frame, ov, seg = work / f"f{i:03d}.png", work / f"o{i:03d}.png", work / f"s{i:03d}.mp4"
+        secs = _seg_seconds(line)
+        n = round(secs * FPS)
+        timed.append(Line(line.text, line.panel_id, line.audio, secs))
+        frame, ov = work / f"f{i:03d}.png", work / f"o{i:03d}.png"
+        vseg, aseg = work / f"v{i:03d}.mp4", work / f"a{i:03d}.wav"
         _frame(p.abs(p.panel(line.panel_id).path), size).save(frame)
         _overlay(line.text, watermark, size).save(ov)
-        n = max(1, round(line.duration * FPS))
         zoom = (
             f"[0:v]scale={W * 2}:{H * 2},zoompan=z='1+0.06*on/{n}':d={n}"
             f":x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={W}x{H}:fps={FPS}[z];"
             f"[z][1:v]overlay=0:0,format=yuv420p[v]"
         )
         _run(["ffmpeg", "-y", "-loglevel", "error", "-loop", "1", "-i", str(frame), "-i", str(ov),
-              "-i", str(p.abs(line.audio)), "-filter_complex", zoom, "-map", "[v]", "-map", "2:a",
-              "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-r", str(FPS),
-              "-c:a", "aac", "-b:a", "160k", "-ar", "44100", "-ac", "2",
-              "-t", f"{line.duration:.3f}", str(seg)])
-        segs.append(seg)
+              "-filter_complex", zoom, "-map", "[v]", "-frames:v", str(n),
+              "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-r", str(FPS), str(vseg)])
+        src = (["-i", str(p.abs(line.audio))] if line.audio and p.abs(line.audio).exists()
+               else ["-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo"])
+        _run(["ffmpeg", "-y", "-loglevel", "error", *src, "-af", f"apad=whole_dur={secs:.4f}",
+              "-t", f"{secs:.4f}", "-ar", "44100", "-ac", "2", "-c:a", "pcm_s16le", str(aseg)])
+        vsegs.append(vseg)
+        asegs.append(aseg)
         if progress:
             progress(i + 1, len(p.lines))
-    listing = work / "list.txt"
-    listing.write_text("".join(f"file '{s.name}'\n" for s in segs))
+    vlist, alist = work / "v.txt", work / "a.txt"
+    vlist.write_text("".join(f"file '{s.name}'\n" for s in vsegs))
+    alist.write_text("".join(f"file '{s.name}'\n" for s in asegs))
+    video, voice = work / "video.mp4", work / "voice.wav"
+    _run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", str(vlist), "-c", "copy", str(video)])
+    _run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", str(alist), "-c", "copy", str(voice)])
     out = p.root / "out" / f"{slugify(p.title)}_{aspect.replace(':', 'x')}.mp4"
-    joined = work / "joined.mp4"
-    _run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", str(listing),
-          "-c", "copy", str(joined)])
+    cmd = ["ffmpeg", "-y", "-loglevel", "error", "-i", str(video), "-i", str(voice)]
     if music:
-        _run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(joined), "-stream_loop", "-1", "-i", str(music),
-              "-filter_complex", "[1:a]volume=-18dB[m];[0:a][m]amix=inputs=2:duration=first:normalize=0[a]",
-              "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", str(out)])
+        cmd += ["-stream_loop", "-1", "-i", str(music), "-filter_complex",
+                "[2:a]volume=-18dB[m];[1:a][m]amix=inputs=2:duration=first:normalize=0[a]", "-map", "0:v", "-map", "[a]"]
     else:
-        joined.replace(out)
-    out.with_suffix(".srt").write_text(make_srt(p.lines), "utf-8")
+        cmd += ["-map", "0:v", "-map", "1:a"]
+    _run(cmd + ["-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-shortest", "-movflags", "+faststart", str(out)])
+    out.with_suffix(".srt").write_text(make_srt(timed), "utf-8")
     return out

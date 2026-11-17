@@ -66,3 +66,51 @@ def test_rate_limit_retries_then_errors(monkeypatch):
     with pytest.raises(AIError, match="giới hạn"):
         with_retry(f)
     assert n["c"] == 4
+
+
+def test_parse_json_bad_raises_aierror():
+    with pytest.raises(AIError):
+        parse_json("{not json at all}")
+
+
+def test_parse_json_list_wrapped():
+    assert parse_json('[{"text": "a", "panel_id": 0}]') == {"items": [{"text": "a", "panel_id": 0}]}
+
+
+def test_script_accepts_list_and_string_ids(tmp_path):
+    p = _proj(tmp_path)
+    write_script(p, FakeProvider(['[{"text": "A", "panel_id": "2"}, {"text": "B", "panel_id": "x"}]']))
+    assert [(l.text, l.panel_id) for l in p.lines] == [("A", 2), ("B", 2)]
+
+
+def test_analyze_string_ids(tmp_path):
+    p = _proj(tmp_path)
+    analyze_panels(p, FakeProvider(['{"panels": [{"id": "1", "description": "d1"}]}']))
+    assert p.panels[1].description == "d1"
+
+
+def test_retries_503(monkeypatch):
+    monkeypatch.setattr(ai.time, "sleep", lambda s: None)
+    n = {"c": 0}
+
+    class E(Exception):
+        code = 503
+
+    def f():
+        n["c"] += 1
+        if n["c"] < 3:
+            raise E("503 UNAVAILABLE")
+        return "ok"
+
+    assert with_retry(f) == "ok"
+
+
+def test_image_bytes_downscaled(tmp_path):
+    from PIL import Image
+    import numpy as np
+    f = tmp_path / "big.png"
+    Image.fromarray(np.random.default_rng(0).integers(0, 255, (4000, 1000, 3)).astype("uint8")).save(f)
+    data, mime = ai.image_payload(f)
+    assert mime == "image/jpeg" and len(data) < 1_500_000
+    import io
+    assert max(Image.open(io.BytesIO(data)).size) <= 1600

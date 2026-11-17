@@ -137,7 +137,8 @@ def build_app() -> gr.Blocks:
         gr.Markdown("# Comic Recap — biến truyện tranh thành video review")
         with gr.Tab("1. Nguồn truyện"):
             url = gr.Textbox(label="Link chapter MangaDex", placeholder="https://mangadex.org/chapter/...")
-            files = gr.File(label="…hoặc tải ảnh lên (theo thứ tự tên file)", file_count="multiple", file_types=["image"])
+            files = gr.File(label="…hoặc tải ảnh lên (theo thứ tự tên file)", file_count="multiple",
+                            file_types=[".png", ".jpg", ".jpeg", ".webp", ".gif"])
             title = gr.Textbox(label="Tên bộ truyện (dùng để nhớ tên nhân vật)")
             b1 = gr.Button("Tải truyện", variant="primary")
             msg1 = gr.Markdown()

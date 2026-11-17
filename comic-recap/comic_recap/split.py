@@ -4,7 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 
 MIN_GUTTER = 12
 MIN_PIECE = 80
@@ -45,7 +45,14 @@ def _force_cuts(gray: np.ndarray, top: int, bottom: int, width: int) -> list[int
 def split_image(path: Path, out_dir: Path, start_id: int) -> list[Path]:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    img = Image.open(path).convert("RGB")
+    try:
+        img = Image.open(path).convert("RGB")
+    except (UnidentifiedImageError, OSError) as e:
+        from .sources import SourceError
+
+        raise SourceError(
+            f"Định dạng ảnh không hỗ trợ: {Path(path).name}. Hãy dùng PNG, JPG hoặc WEBP."
+        ) from e
     w, h = img.size
     if h <= 1.5 * w:
         bounds = [(0, h)]

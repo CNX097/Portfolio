@@ -39,3 +39,12 @@ def test_large_blank_gap_not_a_panel(tmp_path):
     img = np.vstack([_noise(900, 600, rng), np.full((400, 600, 3), 255), _noise(900, 600, rng)])
     out = split_image(_save(img, tmp_path / "a.png"), tmp_path / "o", 0)
     assert len(out) == 2
+
+
+def test_unsupported_image_raises_source_error(tmp_path):
+    import pytest
+    from comic_recap.sources import SourceError
+    bad = tmp_path / "x.heic"
+    bad.write_bytes(b"not an image")
+    with pytest.raises(SourceError, match="không hỗ trợ"):
+        split_image(bad, tmp_path / "o", 0)
