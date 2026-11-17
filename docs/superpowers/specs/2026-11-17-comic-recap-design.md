@@ -39,7 +39,7 @@ Tool cá nhân chạy trên Mac: dán link 1 chapter truyện tranh → ra video
 **Công nghệ (lựa chọn của Claude):** Python 3.11+, giao diện web local bằng Gradio (mở trên trình duyệt), FFmpeg ghép video, Pillow xử lý ảnh, `google-genai` SDK.
 
 **Pipeline (mỗi bước lưu kết quả ra thư mục project để chạy lại/sửa được):**
-1. `fetch` — tải ảnh chapter từ link (mỗi site một "adapter"; adapter chung dò thẻ `<img>` trong vùng đọc truyện). Cắt ảnh webtoon dài thành các khung bằng dò dải nền trắng/đen giữa khung.
+1. `fetch` — nguồn: (a) link chapter MangaDex qua API công khai (at-home server); (b) tải lên thư mục/nhiều file ảnh từ bất kỳ nguồn nào. Kiến trúc adapter để thêm site khác sau. Cắt ảnh webtoon dài thành các khung bằng dò dải nền trắng/đen giữa khung.
 2. `analyze` — gửi các khung theo lô cho Gemini: mô tả cảnh, trích thoại, nhận diện nhân vật. Kèm từ điển nhân vật của bộ truyện.
 3. `script` — Gemini viết kịch bản recap tiếng Việt dạng JSON: danh sách câu, mỗi câu gắn ID khung tranh minh họa. Cập nhật từ điển nhân vật (tên gốc → tên Việt).
 4. `review` (UI) — người dùng xem/sửa câu, đổi khung, sửa tên.
@@ -53,5 +53,5 @@ Tool cá nhân chạy trên Mac: dán link 1 chapter truyện tranh → ra video
 ## Để lại cho người build
 Cách cắt khung chi tiết, prompt cho Gemini, hiệu ứng chuyển cảnh, font phụ đề, cấu trúc thư mục.
 
-## Câu hỏi mở
-- Danh sách site truyện cần hỗ trợ trước tiên (chờ người dùng).
+## Quyết định nguồn truyện
+Người dùng chưa có nguồn quen; đã chọn: MangaDex + upload ảnh thủ công. Người dùng được lưu ý rủi ro bản quyền.
