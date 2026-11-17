@@ -32,7 +32,10 @@ def synthesize_lines(p: Project, voice: str = "vi-VN-HoaiMyNeural", rate: str = 
     async def run() -> None:
         for i, line in enumerate(p.lines):
             rel = f"audio/{i:03d}.mp3"
-            await engine(line.text, voice, rate, p.abs(rel))
+            try:
+                await engine(line.text, voice, rate, p.abs(rel))
+            except Exception as e:  # noqa: BLE001
+                raise RuntimeError(f"Không tạo được giọng đọc (kiểm tra kết nối mạng): {e}") from e
             line.audio, line.duration = rel, probe_duration(p.abs(rel))
             if progress:
                 progress(i + 1, len(p.lines))

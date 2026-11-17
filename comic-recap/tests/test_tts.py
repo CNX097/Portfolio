@@ -18,3 +18,12 @@ def test_synthesize(tmp_path):
     synthesize_lines(p, engine=fake_engine)
     assert [l.audio for l in p.lines] == ["audio/000.mp3", "audio/001.mp3"]
     assert all(abs(l.duration - 1.0) < 0.1 for l in p.lines)
+
+
+def test_engine_failure_is_friendly(tmp_path):
+    async def boom(*a):
+        raise OSError("ssl")
+    p = Project.create(tmp_path / "p", "T")
+    p.lines = [Line("x", 0)]
+    with pytest.raises(RuntimeError, match="giọng đọc"):
+        synthesize_lines(p, engine=boom)
