@@ -1,0 +1,18 @@
+[project]
+name = "comic-recap"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = ["google-genai", "edge-tts", "gradio>=5", "pillow", "numpy", "requests"]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["comic_recap"]
+
+[tool.setuptools.package-data]
+comic_recap = ["assets/*"]

@@ -1,0 +1,9 @@
+google-genai
+edge-tts
+gradio>=5
+pillow
+numpy
+requests
+
+[dev]
+pytest
